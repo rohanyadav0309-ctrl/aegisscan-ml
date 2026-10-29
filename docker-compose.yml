@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  # Damn Vulnerable Web App (DVWA)
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: aegis_dvwa
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      - PHP_IDE_CONFIG=serverName=dvwa
+    restart: unless-stopped
+
+  # OWASP Juice Shop
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: aegis_juiceshop
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped

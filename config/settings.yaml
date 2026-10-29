@@ -1,0 +1,15 @@
+# AegisScan-ML Configuration
+scanner:
+  timeout: 8
+  request_delay: 0.05
+  user_agent: "AegisScan-Engine/1.0 (+Security Audit Framework)"
+  max_crawl_depth: 2
+
+ml_pipeline:
+  model_path: "ml/model.pkl"
+  confidence_threshold: 0.70
+
+targets:
+  mock_url: "http://127.0.0.1:5000"
+  dvwa_url: "http://127.0.0.1:8080"
+  juice_shop_url: "http://127.0.0.1:3000"
