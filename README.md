@@ -89,12 +89,22 @@ python ml/train.py
 
 ### 3. Run Test Server & Execute Scan
 
-**Option A: Using the built-in Mock Testbed (No Docker required)**
+**Option A: Interactive Cyber SOC Web Dashboard (Recommended for Demos)**
+```bash
+# Terminal 1: Launch mock target server (in background)
+python tests/mock_target.py
+
+# Terminal 2: Launch Web Dashboard
+python web_app.py
+```
+*Open your browser at **`http://127.0.0.1:8000`** to launch scans, visualize attack surface maps, view ML confidence badges, and inspect reproducible cURL PoCs.*
+
+**Option B: CLI Terminal Scan**
 ```bash
 # Terminal 1: Launch mock target server
 python tests/mock_target.py
 
-# Terminal 2: Run AegisScan against the mock target
+# Terminal 2: Run AegisScan against the mock target via CLI
 python run.py --url "http://127.0.0.1:5000" --depth 2
 ```
 

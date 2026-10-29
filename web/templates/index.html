@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisScan-ML — Intelligent DAST & Exploit Classifier</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            900: '#070a13',
+                            800: '#0d1322',
+                            700: '#151e34',
+                            600: '#1e2c4d',
+                            accent: '#00f0ff',
+                            success: '#10b981',
+                            danger: '#f43f5e',
+                            warning: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #070a13;
+            color: #f1f5f9;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glow-accent {
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+        }
+        .glow-danger {
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.25);
+        }
+        .scan-radar {
+            background: radial-gradient(circle, rgba(0,240,255,0.15) 0%, rgba(7,10,19,0) 70%);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-cyber-700 bg-cyber-800/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="h-10 w-10 rounded-lg bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center text-cyan-400 glow-accent">
+                    <i class="fa-solid fa-shield-halved text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-lg tracking-wider text-white">AEGIS<span class="text-cyan-400">SCAN</span>-ML</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">v1.2-DAST</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Hybrid Dynamic AppSec & ML Payload Intelligence</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="hidden md:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-cyber-900 border border-cyber-700">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-slate-300">Model Engine: <strong class="text-emerald-400 font-mono">Ensemble/XGBoost Active</strong></span>
+                </div>
+                <button onclick="fillDemoTarget()" class="text-xs bg-cyber-700 hover:bg-cyber-600 text-slate-200 px-3 py-1.5 rounded-lg border border-cyber-600 transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-flask-vial text-cyan-400"></i>
+                    <span>Quick Demo Target</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+
+        <!-- Scanner Configuration Card -->
+        <section class="bg-cyber-800 rounded-xl border border-cyber-700 p-6 shadow-2xl relative overflow-hidden">
+            <div class="absolute right-0 top-0 w-96 h-96 scan-radar pointer-events-none rounded-full blur-2xl"></div>
+            
+            <div class="relative z-10 space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-radar text-cyan-400"></i>
+                            <span>Audit Target Configuration</span>
+                        </h2>
+                        <p class="text-sm text-slate-400 mt-1">
+                            Enter the web application URL to map endpoints, probe injection parameters, and classify exploits.
+                        </p>
+                    </div>
+                </div>
+
+                <form id="scanForm" onsubmit="handleScan(event)" class="space-y-4 pt-2">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                        <div class="lg:col-span-8">
+                            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Target Endpoint / Base URL</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 font-mono text-sm">
+                                    <i class="fa-solid fa-globe"></i>
+                                </span>
+                                <input type="url" id="targetUrl" required
+                                       placeholder="http://127.0.0.1:5000 (or http://127.0.0.1:8080/vulnerabilities/sqli/)"
+                                       value="http://127.0.0.1:5000"
+                                       class="w-full pl-10 pr-4 py-3 bg-cyber-900 border border-cyber-700 rounded-lg text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Crawl Depth</label>
+                            <select id="crawlDepth" class="w-full py-3 px-3 bg-cyber-900 border border-cyber-700 rounded-lg text-slate-100 font-mono text-sm focus:outline-none focus:border-cyan-500 transition">
+                                <option value="1">Depth 1 (Fast)</option>
+                                <option value="2" selected>Depth 2 (Standard)</option>
+                                <option value="3">Depth 3 (Deep Spider)</option>
+                            </select>
+                        </div>
+
+                        <div class="lg:col-span-2 flex items-end">
+                            <button type="submit" id="scanBtn"
+                                    class="w-full py-3 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-sm rounded-lg shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2 transition cursor-pointer">
+                                <i class="fa-solid fa-play" id="btnIcon"></i>
+                                <span id="btnText">Launch Audit</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Status Live Banner -->
+                <div id="liveBanner" class="hidden rounded-lg bg-cyber-900 border border-cyan-500/30 p-4 animate-pulse">
+                    <div class="flex items-center space-x-3 text-cyan-400 text-sm">
+                        <i class="fa-solid fa-circle-notch fa-spin text-lg"></i>
+                        <span id="liveStatusText">Crawling attack surface and injecting intelligent payloads...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Executive Metrics Counters -->
+        <section id="metricsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-cyber-800 border border-cyber-700 rounded-xl p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Discovered Vectors</p>
+                    <h3 id="statVectors" class="text-3xl font-extrabold text-white mt-1 font-mono">0</h3>
+                    <p class="text-xs text-slate-500 mt-1">Endpoints & Form Parameters</p>
+                </div>
+                <div class="h-12 w-12 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-xl">
+                    <i class="fa-solid fa-diagram-project"></i>
+                </div>
+            </div>
+
+            <div class="bg-cyber-800 border border-cyber-700 rounded-xl p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Probes Injected</p>
+                    <h3 id="statProbes" class="text-3xl font-extrabold text-white mt-1 font-mono">0</h3>
+                    <p class="text-xs text-slate-500 mt-1">Context-Aware Payloads</p>
+                </div>
+                <div class="h-12 w-12 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+            </div>
+
+            <div class="bg-cyber-800 border border-cyber-700 rounded-xl p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-rose-400 uppercase tracking-wider">Verified Exploits</p>
+                    <h3 id="statVerified" class="text-3xl font-extrabold text-rose-400 mt-1 font-mono">0</h3>
+                    <p class="text-xs text-slate-500 mt-1">ML Confidence ≥ 70%</p>
+                </div>
+                <div class="h-12 w-12 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-xl glow-danger">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+
+            <div class="bg-cyber-800 border border-cyber-700 rounded-xl p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-emerald-400 uppercase tracking-wider">False Alarms Blocked</p>
+                    <h3 id="statFiltered" class="text-3xl font-extrabold text-emerald-400 mt-1 font-mono">0</h3>
+                    <p class="text-xs text-slate-500 mt-1">Filtered by ML Classifier</p>
+                </div>
+                <div class="h-12 w-12 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-xl">
+                    <i class="fa-solid fa-shield-check"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings & Intelligence Tabs -->
+        <section class="bg-cyber-800 rounded-xl border border-cyber-700 overflow-hidden shadow-xl">
+            <!-- Tabs Navigation -->
+            <div class="border-b border-cyber-700 bg-cyber-900/50 px-6 flex items-center justify-between">
+                <nav class="flex space-x-6 text-sm font-medium">
+                    <button onclick="switchTab('tab-exploits')" id="nav-exploits"
+                            class="py-4 border-b-2 border-cyan-400 text-cyan-400 flex items-center space-x-2 transition">
+                        <i class="fa-solid fa-bug"></i>
+                        <span>Confirmed Exploits</span>
+                        <span id="badgeExploits" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-rose-900 text-rose-300 font-mono">0</span>
+                    </button>
+
+                    <button onclick="switchTab('tab-filtered')" id="nav-filtered"
+                            class="py-4 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 transition">
+                        <i class="fa-solid fa-filter-circle-xmark"></i>
+                        <span>Filtered False Positives</span>
+                        <span id="badgeFiltered" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-emerald-950 text-emerald-400 font-mono">0</span>
+                    </button>
+
+                    <button onclick="switchTab('tab-endpoints')" id="nav-endpoints"
+                            class="py-4 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 transition">
+                        <i class="fa-solid fa-sitemap"></i>
+                        <span>Attack Surface Map</span>
+                    </button>
+                </nav>
+
+                <div class="hidden sm:flex items-center space-x-2">
+                    <button onclick="exportJson()" class="text-xs bg-cyber-700 hover:bg-cyber-600 text-slate-300 px-3 py-1.5 rounded border border-cyber-600 transition flex items-center space-x-1">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Export JSON</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab 1: Confirmed Exploits Content -->
+            <div id="tab-exploits" class="p-6">
+                <div id="noExploitsMsg" class="py-12 text-center text-slate-500">
+                    <i class="fa-solid fa-circle-check text-4xl text-slate-600 mb-3 block"></i>
+                    <p class="text-base font-semibold text-slate-300">Ready to audit target application</p>
+                    <p class="text-xs text-slate-500 mt-1">Launch a scan above to discover vulnerabilities verified by Machine Learning.</p>
+                </div>
+
+                <div id="exploitsTableContainer" class="hidden overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-cyber-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4">Severity</th>
+                                <th class="py-3 px-4">Vulnerability</th>
+                                <th class="py-3 px-4">Parameter</th>
+                                <th class="py-3 px-4">Target Endpoint</th>
+                                <th class="py-3 px-4">ML Exploit Confidence</th>
+                                <th class="py-3 px-4 text-right">Reproduction PoC</th>
+                            </tr>
+                        </thead>
+                        <tbody id="exploitsTableBody" class="divide-y divide-cyber-700 font-mono text-xs">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 2: Filtered False Positives Content -->
+            <div id="tab-filtered" class="hidden p-6">
+                <div class="mb-4 bg-cyber-900 border border-emerald-500/20 rounded-lg p-4 flex items-start space-x-3">
+                    <i class="fa-solid fa-brain text-emerald-400 text-lg mt-0.5"></i>
+                    <div>
+                        <h4 class="text-sm font-semibold text-emerald-400">ML Alert Fatigue Elimination Layer</h4>
+                        <p class="text-xs text-slate-400 mt-1">
+                            The interactions below triggered error codes or reflections that conventional regex scanners (like Nikto or ZAP) would misclassify as vulnerabilities. AegisScan-ML's feature vectorizer examined the DOM delta and entropy, rejecting them to prevent alert fatigue.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="filteredTableContainer" class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-cyber-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4">Suspected Probe</th>
+                                <th class="py-3 px-4">Parameter</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4">Classifier Verdict</th>
+                                <th class="py-3 px-4">Telemetry Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filteredTableBody" class="divide-y divide-cyber-700 font-mono text-xs text-slate-400">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 3: Endpoints Map Content -->
+            <div id="tab-endpoints" class="hidden p-6">
+                <h4 class="text-sm font-semibold text-slate-200 mb-3">Discovered Application Surface Endpoints:</h4>
+                <ul id="endpointsList" class="space-y-2 font-mono text-xs text-slate-300">
+                    <li class="text-slate-500">No endpoints mapped yet.</li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal for Detailed PoC & Raw Telemetry -->
+    <div id="pocModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-cyber-800 border border-cyber-600 rounded-xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span id="modalSeverity" class="px-2 py-0.5 rounded text-xs font-bold uppercase"></span>
+                    <h3 id="modalTitle" class="text-lg font-bold text-white"></h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 font-mono text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1 font-sans font-semibold">Reproduction cURL Command:</label>
+                    <div class="flex items-center bg-cyber-900 border border-cyber-700 rounded p-3 justify-between">
+                        <code id="modalCurl" class="text-cyan-300 break-all select-all"></code>
+                        <button onclick="copyCurl()" class="ml-2 bg-cyber-700 hover:bg-cyber-600 px-3 py-1.5 rounded text-white font-sans transition">
+                            <i class="fa-regular fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-slate-400 block mb-1 font-sans font-semibold">Injected Payload:</label>
+                    <div class="bg-cyber-900 border border-cyber-700 rounded p-3 text-amber-300 break-all" id="modalPayload"></div>
+                </div>
+
+                <div>
+                    <label class="text-slate-400 block mb-1 font-sans font-semibold">Response Body Excerpt:</label>
+                    <div class="bg-cyber-900 border border-cyber-700 rounded p-3 text-slate-300 max-h-40 overflow-y-auto whitespace-pre-wrap" id="modalSnippet"></div>
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-cyber-700 hover:bg-cyber-600 rounded text-sm text-white font-semibold transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        let currentScanData = null;
+
+        function fillDemoTarget() {
+            document.getElementById('targetUrl').value = 'http://127.0.0.1:5000';
+            document.getElementById('crawlDepth').value = '2';
+        }
+
+        function switchTab(tabId) {
+            ['tab-exploits', 'tab-filtered', 'tab-endpoints'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            ['nav-exploits', 'nav-filtered', 'nav-endpoints'].forEach(id => {
+                document.getElementById(id).classList.remove('border-cyan-400', 'text-cyan-400');
+                document.getElementById(id).classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const navId = tabId.replace('tab-', 'nav-');
+            document.getElementById(navId).classList.remove('border-transparent', 'text-slate-400');
+            document.getElementById(navId).classList.add('border-cyan-400', 'text-cyan-400');
+        }
+
+        async function handleScan(event) {
+            event.preventDefault();
+            const url = document.getElementById('targetUrl').value.trim();
+            const depth = parseInt(document.getElementById('crawlDepth').value, 10);
+
+            // UI updates for scanning state
+            const scanBtn = document.getElementById('scanBtn');
+            const btnIcon = document.getElementById('btnIcon');
+            const btnText = document.getElementById('btnText');
+            const liveBanner = document.getElementById('liveBanner');
+            
+            scanBtn.disabled = true;
+            scanBtn.classList.add('opacity-70', 'cursor-not-allowed');
+            btnIcon.className = "fa-solid fa-circle-notch fa-spin";
+            btnText.innerText = "Scanning Target...";
+            liveBanner.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, depth: depth })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Scan failed to complete');
+                }
+
+                const data = await response.json();
+                currentScanData = data;
+                renderScanResults(data);
+            } catch (err) {
+                alert('Scan Execution Error: ' + err.message);
+            } finally {
+                scanBtn.disabled = false;
+                scanBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                btnIcon.className = "fa-solid fa-play";
+                btnText.innerText = "Launch Audit";
+                liveBanner.classList.add('hidden');
+            }
+        }
+
+        function renderScanResults(data) {
+            const sum = data.summary;
+            document.getElementById('statVectors').innerText = sum.attack_vectors_count;
+            document.getElementById('statProbes').innerText = sum.probes_sent_count;
+            document.getElementById('statVerified').innerText = sum.verified_vulnerabilities;
+            document.getElementById('statFiltered').innerText = sum.filtered_false_positives;
+
+            document.getElementById('badgeExploits').innerText = sum.verified_vulnerabilities;
+            document.getElementById('badgeFiltered').innerText = sum.filtered_false_positives;
+
+            // Render Exploits
+            const exploitsTable = document.getElementById('exploitsTableBody');
+            exploitsTable.innerHTML = '';
+            
+            if (data.findings && data.findings.length > 0) {
+                document.getElementById('noExploitsMsg').classList.add('hidden');
+                document.getElementById('exploitsTableContainer').classList.remove('hidden');
+
+                data.findings.forEach((f, idx) => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-cyber-700/40 transition";
+                    
+                    const conf = f.ml_confidence_num || 95.0;
+                    const confColor = conf >= 90 ? 'text-emerald-400 bg-emerald-950 border-emerald-800' : 'text-amber-400 bg-amber-950 border-amber-800';
+
+                    row.innerHTML = `
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-950 text-rose-300 border border-rose-800">
+                                ${f.severity || 'HIGH'}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 font-bold text-white">${f.vuln_type}</td>
+                        <td class="py-3 px-4 text-cyan-300 font-bold">${f.parameter}</td>
+                        <td class="py-3 px-4 text-slate-400 truncate max-w-xs">${f.url}</td>
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-0.5 rounded text-xs font-bold border ${confColor}">${f.ml_confidence}</span>
+                                <div class="w-16 h-1.5 rounded-full bg-cyber-900 overflow-hidden">
+                                    <div class="h-full bg-emerald-400" style="width: ${conf}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="openModal(${idx})" class="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded transition text-xs">
+                                <i class="fa-solid fa-terminal mr-1"></i> Inspect PoC
+                            </button>
+                        </td>
+                    `;
+                    exploitsTable.appendChild(row);
+                });
+            } else {
+                document.getElementById('noExploitsMsg').classList.remove('hidden');
+                document.getElementById('exploitsTableContainer').classList.add('hidden');
+            }
+
+            // Render Filtered False Positives
+            const filteredTable = document.getElementById('filteredTableBody');
+            filteredTable.innerHTML = '';
+            if (data.filtered_out && data.filtered_out.length > 0) {
+                data.filtered_out.forEach(f => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-cyber-700/30 transition";
+                    row.innerHTML = `
+                        <td class="py-3 px-4 text-slate-300">${f.vuln_type}</td>
+                        <td class="py-3 px-4 text-cyan-400">${f.parameter}</td>
+                        <td class="py-3 px-4"><span class="px-1.5 py-0.5 rounded bg-cyber-900 border border-cyber-700">${f.status_code}</span></td>
+                        <td class="py-3 px-4"><span class="text-emerald-400 font-bold"><i class="fa-solid fa-check-shield mr-1"></i> Discarded (False Positive)</span></td>
+                        <td class="py-3 px-4 text-slate-400">${f.filter_reason || 'Low exploit probability'}</td>
+                    `;
+                    filteredTable.appendChild(row);
+                });
+            } else {
+                filteredTable.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">No benign noise encountered.</td></tr>';
+            }
+
+            // Render Endpoints
+            const epList = document.getElementById('endpointsList');
+            epList.innerHTML = '';
+            if (data.discovered_endpoints && data.discovered_endpoints.length > 0) {
+                const unique = [...new Set(data.discovered_endpoints)];
+                unique.forEach(ep => {
+                    const li = document.createElement('li');
+                    li.className = "flex items-center space-x-2";
+                    li.innerHTML = `<i class="fa-solid fa-link text-cyan-500 text-xs"></i> <span>${ep}</span>`;
+                    epList.appendChild(li);
+                });
+            }
+        }
+
+        function openModal(idx) {
+            if (!currentScanData || !currentScanData.findings[idx]) return;
+            const f = currentScanData.findings[idx];
+            document.getElementById('modalTitle').innerText = `${f.vuln_type} on [${f.parameter}]`;
+            
+            const sev = document.getElementById('modalSeverity');
+            sev.innerText = f.severity || 'HIGH';
+            sev.className = "px-2 py-0.5 rounded text-xs font-bold uppercase bg-rose-950 text-rose-300 border border-rose-800";
+
+            document.getElementById('modalCurl').innerText = f.curl_poc || `curl -X GET '${f.url}?${f.parameter}=${f.payload}'`;
+            document.getElementById('modalPayload').innerText = f.payload;
+            document.getElementById('modalSnippet').innerText = f.response_body || 'N/A';
+            document.getElementById('pocModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('pocModal').classList.add('hidden');
+        }
+
+        function copyCurl() {
+            const text = document.getElementById('modalCurl').innerText;
+            navigator.clipboard.writeText(text);
+            alert('cURL command copied to clipboard!');
+        }
+
+        function exportJson() {
+            if (!currentScanData) {
+                alert('Run a scan first to export results.');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(currentScanData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `aegisscan_report_${Date.now()}.json`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
